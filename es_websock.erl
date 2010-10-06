@@ -34,21 +34,25 @@ logout(User) -> gen_server:call(?MODULE,{logout,User}).
 
 handle_call(getState, _From, State) -> {reply,State,State};
 handle_call({say,User,Message}, _From, State = #state{users=Users}) when Message=/=[] ->
-    {Sock,X,Y,LastMessage}=dict:fetch(User,Users),
-                                                %            u:trace("Flood Test",{Now,LastMessage,(Now-LastMessage)}),
-    case (u:unixtime()-LastMessage)>4 of 
-        true ->
-            SendToAll = fun(Key,Value) ->
-                                case Key=:=User of
-                                    true -> void;
-                                    false -> gen_tcp:send(element(1,Value),[0,"say @@@ ",User,"||",Message,255])
-                                end
-                        end,
-            dict:map(SendToAll,Users);
-        false ->
-            connect:alert(Sock,"Error: Flooding, Message not sent.")
-    end,
-    {reply,ok,State#state{users=dict:store(User,{Sock,X,Y,LastMessage},Users)}};
+    case dict:find(User,Users) of
+        {ok, {Sock,X,Y,LastMessage}} ->
+                                                                       %            u:trace("Flood Test",{Now,LastMessage,(Now-LastMessage)}),
+            case (u:unixtime()-LastMessage)>4 of 
+                true ->
+                    SendToAll = fun(Key,Value) ->
+                                        case Key=:=User of
+                                            true -> void;
+                                            false -> gen_tcp:send(element(1,Value),[0,"say @@@ ",User,"||",Message,255])
+                                        end
+                                end,
+                    dict:map(SendToAll,Users);
+                false ->
+                    connect:alert(Sock,"Error: Flooding, Message not sent.")
+            end,
+            {reply,ok,State#state{users=dict:store(User,{Sock,X,Y,LastMessage},Users)}};
+        _ ->
+            {reply,ok,State}
+        end;
 handle_call({register,Sock,User,X,Y}, _From, State = #state{users=Users}) ->
     LastMessage=element(4,dict:fetch(User,Users)),
     SendToAll = fun(Key,Value) ->
