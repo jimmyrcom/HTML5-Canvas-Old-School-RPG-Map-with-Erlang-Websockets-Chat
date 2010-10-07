@@ -9,6 +9,7 @@
           , increment = 0
         }).
 -define(SERVER, ?MODULE).
+%Created by Jimmy Ruska under GPL 2.0
 
 start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 init([]) ->
