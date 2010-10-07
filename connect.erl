@@ -1,26 +1,41 @@
 -module(connect).
 -export([accept_connections/1,alert/2]).
 -record(state,{sock,user,x,y,lastMessage}).
+-record(websock,{key1,key2,allowed,origin,host,request,port}).
 
 accept_connections(S) ->
     {ok, ClientS} = gen_tcp:accept(S),
     u:say("Connection request received"),
     spawn(fun() -> accept_connections(S) end),
     receive {tcp,_,Bin} ->
-            [Request|[Data]] = binary:split(Bin,<<16#0d0a0d0a:32>>),
-            L = binary:split(Request,<<16#0d0a:16>>,[global]),
-%            u:trace(Request,Data),
-            {Key1, Key2} = parseKeys(L,false,false),
+            [HttpRequest|[Data]] = binary:split(Bin,<<16#0d0a0d0a:32>>),
+            Fields = binary:split(HttpRequest,<<16#0d0a:16>>,[global]),
+            AllowedOrigin = 
+                [ <<"rp.eliteskills.com">>
+                      , <<"jimmyr.com">>
+                      , <<"localhost">>
+                      , <<"76.74.253.61.844">>
+                ],
+%		            u:trace(HttpRequest,Data),
+            #websock{
+                        key1=Key1
+                      , key2=Key2
+                      ,  origin=Origin
+                      , request=Request
+                      , host=Host
+                      , port=Port
+                    } = parseKeys(Fields,#websock{allowed=AllowedOrigin}),
             Handshake = 
                 [
                  "HTTP/1.1 101 WebSocket Protocol Handshake\r\n",
                  "Upgrade: WebSocket\r\n",
                  "Connection: Upgrade\r\n",
-                 "Sec-WebSocket-Origin: http://rp.eliteskills.com\r\n",
-                 "Sec-WebSocket-Location: ws://76.74.253.61:844/websession\r\n",
+                 "Sec-WebSocket-Origin: ",Origin,"\r\n",
+                 "Sec-WebSocket-Location: ws://",Host,":",integer_to_list(Port),Request,"\r\n",
                  "Sec-WebSocket-Protocol: sample\r\n\r\n",
                  erlang:md5(<<Key1:32, Key2:32,Data/binary>>)
                 ],
+%            u:trace(Handshake),
             gen_tcp:send(ClientS, Handshake),
             step2(ClientS)
     after 30000 ->
@@ -84,12 +99,42 @@ other(State,What)->
     gen_tcp:close(State#state.sock).
 
 
-parseKeys([<<"Sec-WebSocket-Key1: ",Key/binary>>|T],_,Key2) ->
-    parseKeys(T,genKey(Key,[],0),Key2);
-parseKeys([<<"Sec-WebSocket-Key2: ",Key/binary>>|T],Key1,_) ->
-    parseKeys(T,Key1,genKey(Key,[],0));
-parseKeys([],Key1,Key2) -> {Key1, Key2};
-parseKeys([_|T],Key1,Key2) -> parseKeys(T,Key1,Key2).
+parseKeys([<<"Sec-WebSocket-Key1: ",Key/binary>>|T],Websock) ->
+    parseKeys(T,Websock#websock{key1=genKey(Key,[],0)});
+parseKeys([<<"Sec-WebSocket-Key2: ",Key/binary>>|T],Websock) ->
+    parseKeys(T,Websock#websock{key2=genKey(Key,[],0)});
+parseKeys([<<"Origin: ",Origin/binary>>|T],Websock) ->   
+    parseKeys(T,Websock#websock{origin=Origin});
+parseKeys([<<"Host: ",Host/binary>>|T],Websock) ->
+    [Host1,Port] = binary:split(Host,<<$:>>),
+    parseKeys(T,Websock#websock{host=Host1,port=list_to_integer(binary_to_list(Port))});
+parseKeys([<<"GET ",Request/binary>>|T],Websock) ->
+    Size = byte_size(Request)-9,
+    <<Request1:Size/binary,_/binary>> = Request,
+    parseKeys(T,Websock#websock{request = Request1});
+parseKeys([],W) when 
+      W#websock.key1=/=undefined andalso
+      W#websock.key2=/=undefined andalso
+      W#websock.origin=/=undefined andalso
+      W#websock.host=/=undefined
+      ->
+    [_|Origin] = re:replace(W#websock.origin,"http://(www\.)?","",[caseless]),
+    u:trace("Origin: ",Origin),
+    Test = lists:any(
+             fun(Host) when Host=:=Origin -> true; (_) -> false
+             end,
+             W#websock.allowed),
+    case Test of
+        true -> W;
+        false ->
+            u:trace(W),
+            throw("No matching allowed hosts")
+    end;
+parseKeys([],W) ->
+    u:trace(W),
+    throw("Missing Information");
+parseKeys([_|T],Websock) -> parseKeys(T,Websock).
+
 
 genKey(<<X:8,Rest/binary>>,Numbers,Spaces) when X>47 andalso X<58 ->
     genKey(Rest,[X|Numbers],Spaces);
