@@ -1,0 +1,4 @@
+Erlang websocket server for my HTML5 Canvas Map
+http://rp.eliteskills.com/html5.php
+
+It tracks connections and sends chat messages and movement updates. 
