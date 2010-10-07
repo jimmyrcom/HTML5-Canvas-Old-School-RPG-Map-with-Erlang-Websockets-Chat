@@ -37,7 +37,7 @@ handle_call({say,User,Message}, _From, State = #state{users=Users}) when Message
     case dict:find(User,Users) of
         {ok, {Sock,X,Y,LastMessage}} ->
                                                                        %            u:trace("Flood Test",{Now,LastMessage,(Now-LastMessage)}),
-            case (u:unixtime()-LastMessage)>4 of 
+            case (u:unixtime()-LastMessage)>1 of 
                 true ->
                     SendToAll = fun(Key,Value) ->
                                         case Key=:=User of
@@ -47,14 +47,19 @@ handle_call({say,User,Message}, _From, State = #state{users=Users}) when Message
                                 end,
                     dict:map(SendToAll,Users);
                 false ->
-                    connect:alert(Sock,"Error: Flooding, Message not sent.")
+                    connect:alert(Sock,["Error: Flooding, Message not sent, wait ", integer_to_list(2-(u:unixtime()-LastMessage))," more seconds to post again"])
             end,
-            {reply,ok,State#state{users=dict:store(User,{Sock,X,Y,LastMessage},Users)}};
+            {reply,ok,State#state{users=dict:store(User,{Sock,X,Y,u:unixtime()},Users)}};
         _ ->
             {reply,ok,State}
         end;
 handle_call({register,Sock,User,X,Y}, _From, State = #state{users=Users}) ->
-    LastMessage=element(4,dict:fetch(User,Users)),
+    case dict:find(User,Users) of
+        {ok, Val} ->
+            LastMessage=element(4,Val);
+        _ ->
+            LastMessage=u:unixtime()-5
+    end,        
     SendToAll = fun(Key,Value) ->
                         case Key=:=User of
                             true -> void;
@@ -66,7 +71,7 @@ handle_call({register,Sock,User,X,Y}, _From, State = #state{users=Users}) ->
 handle_call({checkUser,User,Sock}, _From, State = #state{users=Users}) ->
     case dict:find(User,Users) of
         {ok,_} -> {reply,fail,State};
-        error ->     {reply,go,State#state{users=dict:store(User,{Sock,"0","0",u:unixtime()},Users)}}
+        error ->     {reply,go,State#state{users=dict:store(User,{Sock,"0","0",u:unixtime()-5},Users)}}
     end;
 handle_call({logout,User}, _From, State=#state{users=Users}) ->
     SendToAll = fun(Key,Value) ->

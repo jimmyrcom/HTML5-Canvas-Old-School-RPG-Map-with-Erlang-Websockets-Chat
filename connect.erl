@@ -29,7 +29,6 @@ accept_connections(S) ->
 
 step2(ClientS) ->
     receive {tcp,_,Bin1} ->
-            LastMessage=u:unixtime(),
            ["move",User,X,Y] = string:tokens(binary_to_list(binary:part(Bin1,1,byte_size(Bin1)-2)),"||"),
             case es_websock:checkUser(User,ClientS) of
                 fail ->
@@ -37,7 +36,7 @@ step2(ClientS) ->
                 go ->
                     gen_tcp:send(ClientS,[0,"all @@@ ",es_websock:allUsers(User),255]),
                     es_websock:register(ClientS,User,X,Y),
-                    client(#state{user=User,x=X,y=Y,lastMessage=LastMessage,sock=ClientS})
+                    client(#state{user=User,x=X,y=Y,lastMessage=0,sock=ClientS})
             end
     after 30 * 1000 ->
             die(ClientS,"Timeout on Handshake")
@@ -56,12 +55,12 @@ client(State) ->
         {tcp,_,Bin} -> 
             Bin1 = binary_to_list(binary:part(Bin,1,byte_size(Bin)-2)),
 %            gen_tcp:send(State#state.sock,[0,"Sup brohan",255]),
-            u:trace("Received From Client: ",Bin1),
+%            u:trace("Received From Client: ",Bin1),
             actions(State,string:tokens(Bin1,"||")),
             client(State);
         Other ->
             other(State,Other)
-    after 60*2 * 1000 ->
+    after 60*10 * 1000 ->
             es_websock:logout(State#state.user),
             die(State#state.sock,"Disconnected from server: IDLE Timeout")
     end.
@@ -71,6 +70,7 @@ actions(State,Data) ->
         ["move",User,X,Y] ->  
             es_websock:register(State#state.sock,User,X,Y);
         ["say",User,Message] ->
+            u:trace(User,Message),
             es_websock:say(User,Message);
         _ ->
             u:trace("Unidentified Message",Data)                
@@ -94,7 +94,7 @@ parseKeys([_|T],Key1,Key2) -> parseKeys(T,Key1,Key2).
 genKey(<<X:8,Rest/binary>>,Numbers,Spaces) when X>47 andalso X<58 ->
     genKey(Rest,[X|Numbers],Spaces);
 genKey(<<>>,Numbers,Spaces) ->
-    u:trace("Key: ",Numbers),
+%    u:trace("Key: ",Numbers),
     list_to_integer(lists:reverse(Numbers)) div Spaces;
 genKey(<<$ :8,Rest/binary>>,Numbers,Spaces) ->
     genKey(Rest,Numbers,Spaces+1);
