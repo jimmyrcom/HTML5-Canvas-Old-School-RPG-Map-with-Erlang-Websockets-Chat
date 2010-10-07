@@ -2,7 +2,7 @@
 -export([accept_connections/1,alert/2]).
 -record(state,{sock,user,x,y,lastMessage}).
 -record(websock,{key1,key2,allowed,origin,host,request,port}).
-%Created by Jimmy Ruska under GPL
+%Created by Jimmy Ruska under GPL 2.0
 
 accept_connections(S) ->
     {ok, ClientS} = gen_tcp:accept(S),
