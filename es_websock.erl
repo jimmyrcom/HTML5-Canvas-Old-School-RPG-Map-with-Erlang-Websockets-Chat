@@ -8,13 +8,22 @@
           , sock
           , increment = 0
         }).
+-include("user.hrl").
 -define(SERVER, ?MODULE).
-%Created by Jimmy Ruska under GPL 2.0
+%%Created by Jimmy Ruska under GPL 2.0
+%% Copyright (C) 2010 Jimmy Rusk (@JimmyRcom,Youtube:JimmyRcom,Gmail:JimmyRuska)
+
+%% This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+
+%% This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+%% You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
 
 start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 init([]) ->
     process_flag(trap_exit, true),
-    case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}]) of
+    case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}, {packet_size,1024}]) of
         {ok, S} -> 
             spawn_link(fun() -> connect:accept_connections(S) end),
             {ok,#state{sock=S}};
@@ -23,69 +32,52 @@ init([]) ->
             throw(Err)
     end.
 
-
 stop() -> gen_server:call(?MODULE,die).
 gs() -> gen_server:call(?MODULE,getState).
 rs() -> gen_server:call(?MODULE,resetState).
 say(User,Message) -> gen_server:call(?MODULE,{say,User,Message}).
-register(Sock,User,X,Y) -> gen_server:call(?MODULE,{register,Sock,User,X,Y}).
-checkUser(User,Sock) -> gen_server:call(?MODULE,{checkUser,User,Sock}).
+move(User,X,Y) -> gen_server:call(?MODULE,{move,User,X,Y}).
+checkUser(Simple,IP,Pid) -> gen_server:call(?MODULE,{checkUser,Simple,IP,Pid}).
 allUsers(User) -> gen_server:call(?MODULE,{allUsers,User}).
 logout(User) -> gen_server:call(?MODULE,{logout,User}).
+
+sendToAll(Dict,You,Message) ->
+    dict:map(fun(User,_) when User=:=You -> void;
+                (_,Record) -> gen_tcp:send(Record#user.sock,[0,Message,255])
+             end,Dict).
 
 handle_call(getState, _From, State) -> {reply,State,State};
 handle_call({say,User,Message}, _From, State = #state{users=Users}) when Message=/=[] ->
     case dict:find(User,Users) of
-        {ok, {Sock,X,Y,LastMessage}} ->
-                                                                       %            u:trace("Flood Test",{Now,LastMessage,(Now-LastMessage)}),
-            case (u:unixtime()-LastMessage)>1 of 
-                true ->
-                    SendToAll = fun(Key,Value) ->
-                                        case Key=:=User of
-                                            true -> void;
-                                            false -> gen_tcp:send(element(1,Value),[0,"say @@@ ",User,"||",Message,255])
-                                        end
-                                end,
-                    dict:map(SendToAll,Users);
-                false ->
-                    connect:alert(Sock,["Error: Flooding, Message not sent, wait ", integer_to_list(2-(u:unixtime()-LastMessage))," more seconds to post again"])
+        {ok, Record} ->
+            case (u:unixtime()-Record#user.lastMessage)>1 of 
+                true -> sendToAll(Users,User,["say @@@ ",User,"||",Message]);
+                false -> websockets:alert(Record#user.sock,["Error: Flooding, message not sent, wait ",integer_to_list(2-(u:unixtime()-Record#user.lastMessage))," more seconds to post again"])
             end,
-            {reply,ok,State#state{users=dict:store(User,{Sock,X,Y,u:unixtime()},Users)}};
+            Unix=u:unixtime(),
+            {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Unix,lastAction=Unix},Users)}};
         _ ->
-            {reply,ok,State}
+            {reply,fail,State}
         end;
-handle_call({register,Sock,User,X,Y}, _From, State = #state{users=Users}) ->
+handle_call({move,User,X,Y}, _From, State = #state{users=Users}) ->
     case dict:find(User,Users) of
-        {ok, Val} ->
-            LastMessage=element(4,Val);
-        _ ->
-            LastMessage=u:unixtime()-5
-    end,        
-    SendToAll = fun(Key,Value) ->
-                        case Key=:=User of
-                            true -> void;
-                            false -> gen_tcp:send(element(1,Value),[0,"move @@@ ",User,"||",X,"||",Y,255])
-                        end
-                end,
-    dict:map(SendToAll,Users),
-    {reply,ok,State#state{users=dict:store(User,{Sock,X,Y,LastMessage},Users)}};
-handle_call({checkUser,User,Sock}, _From, State = #state{users=Users}) ->
+        {ok, Record} ->
+            Last=Record#user.lastMessage,
+            sendToAll(Users,User,["move @@@ ",User,"||",X,"||",Y]),
+            {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Last,lastAction=Last},Users)}};
+        _ -> {reply,fail,State}
+    end;
+handle_call({checkUser,#simple{sock=Sock,user=User,x=X,y=Y},IP,Pid}, _From, State = #state{users=Users,increment=ID}) ->
     case dict:find(User,Users) of
         {ok,_} -> {reply,fail,State};
-        error ->     {reply,go,State#state{users=dict:store(User,{Sock,"0","0",u:unixtime()-5},Users)}}
+        error -> {reply,go,State#state{increment=ID+1,users=dict:store(User,#user{sock=Sock,id=ID,ip=IP,pid=Pid,x=X,y=Y},Users)}}
     end;
 handle_call({logout,User}, _From, State=#state{users=Users}) ->
-    SendToAll = fun(Key,Value) ->
-                        case Key=:=User of
-                            true -> void;
-                            false -> gen_tcp:send(element(1,Value),[0,"logout @@@ ",User,255])
-                        end
-                end,
-    dict:map(SendToAll,Users),
+    sendToAll(Users,User,["logout @@@ ",User]),
     {reply,ok,State#state{users=dict:erase(User,Users)}};
 handle_call({allUsers,User}, _From, State=#state{users=Users}) ->
     Gather =
-        fun(Key,{_,X,Y,_},Acc)->
+        fun(Key,#user{x=X,y=Y},Acc)->
                 if User=/=Key -> [[",[\"",Key,"\",\"",X,"\",\"",Y,"\"]"]|Acc];
                    true -> Acc end                               
         end,
@@ -110,9 +102,3 @@ terminate(_Reason, #state{sock=Sock} = State) ->
     ok.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-
-s(S,Data) ->
-    gen_tcp:send(S,Data).
-
-%    case gen_tcp:listen(5555, [binary, {packet, 2}, {active, false}, {packet_size,1024*256}]) of
