@@ -75,11 +75,15 @@ parseKeys([],W) when
       W#websock.origin=/=undefined andalso
       W#websock.host=/=undefined
       ->
-    [_|Origin] = re:replace(W#websock.origin,"http://(www\.)?","",[caseless]),
-    Test = lists:any(
-             fun(Host) when Host=:=Origin -> true; (_) -> false
-             end,
-             W#websock.allowed),
+
+    case  W#websock.allowed of
+        any ->
+            Test=true;
+        Allowed ->
+            [_|Origin] = re:replace(W#websock.origin,"http://(www\.)?","",[caseless]),
+            Test = lists:any(fun(Host) when Host=:=Origin -> true; (_) -> false end,Allowed)
+    end,
+
     case Test of
         true -> W;
         false ->
