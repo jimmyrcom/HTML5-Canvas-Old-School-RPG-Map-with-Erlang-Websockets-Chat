@@ -25,7 +25,7 @@ init([]) ->
     process_flag(trap_exit, true),
     case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}, {packet_size,1024}]) of
         {ok, S} -> 
-            spawn_link(fun() -> connect:accept_connections(S) end),
+            spawn(fun() -> connect:accept_connections(S) end),
             {ok,#state{sock=S}};
         Err -> 
             u:trace("Accept connections failed"),
@@ -64,7 +64,7 @@ handle_call({move,User,X,Y}, _From, State = #state{users=Users}) ->
         {ok, Record} ->
             Last=Record#user.lastMessage,
             sendToAll(Users,User,["move @@@ ",User,"||",X,"||",Y]),
-            {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Last,lastAction=Last},Users)}};
+            {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Last,lastAction=Last,x=X,y=Y},Users)}};
         _ -> {reply,fail,State}
     end;
 handle_call({checkUser,#simple{sock=Sock,user=User,x=X,y=Y},IP,Pid}, _From, State = #state{users=Users,increment=ID}) ->

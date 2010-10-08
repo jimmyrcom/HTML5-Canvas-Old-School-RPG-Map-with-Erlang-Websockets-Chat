@@ -7,7 +7,6 @@
               , <<"localhost">>
               , <<"76.74.253.61.844">>
         ]).
--define(Timeout,30 * 1000).
 %%Created by Jimmy Ruska under GPL 2.0
 %% Copyright (C) 2010 Jimmy Rusk (@JimmyRcom,Youtube:JimmyRcom,Gmail:JimmyRuska)
 %% This implements a websocket handler in erlang. You give it the request and it returns the proper handshake.

@@ -1,6 +1,8 @@
 -module(connect).
 -export([accept_connections/1]).
 -include("user.hrl").
+-define(TIMEOUT,30*1000).
+-define(IDLE,60*10*1000).
 %%Created by Jimmy Ruska under GPL 2.0
 %% Copyright (C) 2010 Jimmy Rusk (@JimmyRcom,Youtube:JimmyRcom,Gmail:JimmyRuska)
 
@@ -16,7 +18,7 @@ accept_connections(S) ->
     receive {tcp,_,Bin} ->
             gen_tcp:send(ClientS, websockets:handshake(Bin)),
             step2(ClientS)
-    after 30 * 1000 ->
+    after ?TIMEOUT ->
             websockets:die(ClientS,"Timeout on Handshake")
     end.
 
@@ -32,7 +34,7 @@ step2(ClientS) ->
                     gen_tcp:send(ClientS,[0,"all @@@ ",es_websock:allUsers(User),255]),
                     client(State)
             end
-    after 30 * 1000 ->
+    after ?TIMEOUT ->
             websockets:die(ClientS,"Timeout on Handshake")
     end.
    
@@ -46,7 +48,7 @@ client(State) ->
             websockets:die(State#user.sock,"Server murdered websocket.");
         _ ->
             es_websock:logout(State#simple.user)
-    after 60*10 * 1000 ->
+    after ?IDLE ->
             es_websock:logout(State#simple.user),
             websockets:die(State#user.sock,"Disconnected from server: IDLE Timeout")
     end.
