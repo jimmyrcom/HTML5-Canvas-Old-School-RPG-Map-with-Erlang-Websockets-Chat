@@ -26,7 +26,10 @@ step2(ClientS) ->
     receive {tcp,_,Bin1} ->
             {ok,{IP,_}} = inet:peername(ClientS),
             ["move",User,X,Y] = string:tokens(binary_to_list(binary:part(Bin1,1,byte_size(Bin1)-2)),"||"),
-            State=#simple{user=User,sock=ClientS,x=X,y=Y},
+            State = #simple{user=User,sock=ClientS,x=X,y=Y},
+            if (length(User)>25) -> throw("Name too long"); true -> void end,
+            Test = lists:any(fun(E) when E=:=$ ;E=:=$<;E=:=$> -> true;(_)->false end,User),
+            case Test of true -> throw("Bad characters in username"); false -> void end,               
             case es_websock:checkUser(State,IP,self()) of
                 fail ->
                     websockets:die(ClientS,"Already Connected");
@@ -44,31 +47,29 @@ client(State) ->
             Bin1 = binary_to_list(binary:part(Bin,1,byte_size(Bin)-2)),
             actions(State,string:tokens(Bin1,"||")),
             client(State);
-        die ->
-            websockets:die(State#user.sock,"Server murdered websocket.");
         _ ->
-            es_websock:logout(State#simple.user)
+            es_websock:logout(State#simple.user),
+            websockets:die(State#simple.sock,"Dead")
     after ?IDLE ->
             es_websock:logout(State#simple.user),
-            websockets:die(State#user.sock,"Disconnected from server: IDLE Timeout")
+            websockets:die(State#simple.sock,"Disconnected from server: IDLE Timeout")
     end.
 
 actions(State,Data) ->
     User=State#simple.user,
+    [Action,User1|Rest] = Data,
+    case User=/=User1 of
+        true -> self() ! die;
+        false -> actions1(Action,User,State,Rest)
+    end.
+
+actions1(Action,User,State,Data) ->
     case Data of
-        ["move",User1,X,Y] ->
-            case User=/=User1 of
-                false -> test(es_websock:move(User,X,Y),State);
-                true -> websockets:die("Nice try brohan")
-            end;
-        ["say",User1,Message] ->
-            case User=/=User1 of
-                false ->
-                    u:trace(User,Message),
-                    test(es_websock:say(User,Message),State);
-                true ->
-                    websockets:die("Nice try brohan")
-            end;
+        [X,Y] when Action=:="move" ->
+            test(es_websock:move(User,X,Y),State);
+        [Message] when Action=:="say" ->
+            u:trace(User,Message),
+            test(es_websock:say(User,Message),State);
         _ ->
             u:trace("Unidentified Message",Data)
     end.
