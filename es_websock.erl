@@ -3,13 +3,9 @@
 -compile(export_all).
 -export([start_link/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,terminate/2, code_change/3]).
--record(state, 
-        { users = dict:new()
-          , sock
-          , increment = 0
-        }).
 -include("user.hrl").
 -define(SERVER, ?MODULE).
+
 %%Created by Jimmy Ruska under GPL 2.0
 %% Copyright (C) 2010 Jimmy Ruska (@JimmyRcom,Youtube:JimmyRcom,Gmail:JimmyRuska)
 
@@ -23,7 +19,8 @@
 start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 init([]) ->
     process_flag(trap_exit, true),
-    case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}, {packet_size,1024}]) of
+    %443
+    case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}, {packet_size,1024*2}]) of
         {ok, S} -> 
             spawn(fun() -> connect:accept_connections(S) end),
             {ok,#state{sock=S}};
@@ -32,66 +29,64 @@ init([]) ->
             throw(Err)
     end.
 
+debug() -> gen_server:call(?MODULE,debug).
 stop() -> gen_server:call(?MODULE,die).
 gs() -> gen_server:call(?MODULE,getState).
 rs() -> gen_server:call(?MODULE,resetState).
-say(User,Message) -> gen_server:call(?MODULE,{say,User,Message}).
-move(User,X,Y) -> gen_server:call(?MODULE,{move,User,X,Y}).
-checkUser(Simple,IP,Pid) -> gen_server:call(?MODULE,{checkUser,Simple,IP,Pid}).
-allUsers(User) -> gen_server:call(?MODULE,{allUsers,User}).
-logout(User) -> gen_server:call(?MODULE,{logout,User}).
 
 sendToAll(Dict,You,Message) ->
-    dict:map(fun(User,_) when User=:=You -> void;
+    dict:map(fun(ID,_) when ID=:=You -> void;
                 (_,Record) -> gen_tcp:send(Record#user.sock,[0,Message,255])
              end,Dict).
 
+say(ID,Message) -> gen_server:cast(?MODULE,{say,ID,Message}).
+move(ID) -> gen_server:cast(?MODULE,{move,ID}).
+logout(ID) -> gen_server:cast(?MODULE,{logout,ID}).
+
+checkUser(State) -> gen_server:call(?MODULE,{checkUser,State}).
+
+%performance penalty from using modules, but putting all the code here gets ridiculous pretty fast
+handle_call({checkUser,UserState}, _, State) -> checkUser:checkUser(UserState,State);
 handle_call(getState, _From, State) -> {reply,State,State};
-handle_call({say,User,Message}, _From, State = #state{users=Users}) when Message=/=[] ->
-    case dict:find(User,Users) of
-        {ok, Record} ->
-            case (u:unixtime()-Record#user.lastMessage)>1 of 
-                true -> sendToAll(Users,User,["say @@@ ",User,"||",Message]);
-                false -> websockets:alert(Record#user.sock,["Error: Flooding, message not sent, wait ",integer_to_list(2-(u:unixtime()-Record#user.lastMessage))," more seconds to post again"])
-            end,
-            Unix=u:unixtime(),
-            {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Unix,lastAction=Unix},Users)}};
-        _ ->
-            {reply,fail,State}
-        end;
-handle_call({move,User,X,Y}, _From, State = #state{users=Users}) ->
-    case dict:find(User,Users) of
-        {ok, Record} ->
-            Last=Record#user.lastMessage,
-            sendToAll(Users,User,["move @@@ ",User,"||",X,"||",Y]),
-            {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Last,lastAction=Last,x=X,y=Y},Users)}};
-        _ -> {reply,fail,State}
-    end;
-handle_call({checkUser,#simple{sock=Sock,user=User,x=X,y=Y},IP,Pid}, _From, State = #state{users=Users,increment=ID}) ->
-    case dict:find(User,Users) of
-        {ok,_} -> {reply,fail,State};
-        error -> {reply,go,State#state{increment=ID+1,users=dict:store(User,#user{sock=Sock,id=ID,ip=IP,pid=Pid,x=X,y=Y},Users)}}
-    end;
-handle_call({logout,User}, _From, State=#state{users=Users}) ->
-    sendToAll(Users,User,["logout @@@ ",User]),
-    {reply,ok,State#state{users=dict:erase(User,Users)}};
-handle_call({allUsers,User}, _From, State=#state{users=Users}) ->
-    Gather =
-        fun(Key,#user{x=X,y=Y},Acc)->
-                if User=/=Key -> [[",[\"",Key,"\",\"",X,"\",\"",Y,"\"]"]|Acc];
-                   true -> Acc end                               
-        end,
-    case lists:flatten(dict:fold(Gather,[],Users)) of
-        [_|Out] -> void;
-        [] -> Out="[]"
-    end,
-    {reply,["[",Out,"]"],State};
+handle_call(debug, _From, State) ->
+    #state{lookupByID=LBID,lookupByName=LBName,lookupByIP=LBIP,maps=Maps} = State,
+    u:trace(dict:to_list(array:get(0,Maps))),
+    u:trace(gb_trees:to_list(LBName)),
+    u:trace(gb_trees:to_list(LBIP)),
+    u:trace(dict:to_list(LBID)),
+    {reply,ok,State};
 handle_call(resetState, _From, _State) -> {reply,ok,#state{}};
 handle_call(die, _From, State) -> {stop, normal, State};
 handle_call(_Request, _From, State) ->
     u:trace("unknown gen_server:handle_call()",_Request),
     {reply, ok, State}.
+
+%% handle_cast({say,Simple,Message}, State) when Message=/="" ->
+%%    {noreply, say:say(Simple,Message,State)}
+%% handle_cast({move,ID,User,X,Y},  State = #state{users=Users}) ->
+%%     case dict:find(ID,Users) of
+%%         {ok, Record} ->
+%%             Last=Record#user.lastMessage,
+%%             sendToAll(Users,User,["move @@@ ",User,"||",X,"||",Y]),
+%%             {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Last,lastAction=Last,x=X,y=Y},Users)}};
+%%         _ -> {reply,State}
+%%     end;
+%% handle_cast({logout,User}, State=#state{users=Users}) ->
+%%     sendToAll(Users,User,["logout @@@ ",User]),
+%%     {reply,ok,State#state{users=dict:erase(User,Users)}};
+%% handle_cast({allUsers,User},  State=#state{users=Users}) ->
+%%     Gather =
+%%         fun(Key,#user{x=X,y=Y},Acc)->
+%%                 if User=/=Key -> [[",[\"",Key,"\",\"",X,"\",\"",Y,"\"]"]|Acc];
+%%                    true -> Acc end                               
+%%         end,
+%%     case lists:flatten(dict:fold(Gather,[],Users)) of
+%%         [_|Out] -> void;
+%%         [] -> Out="[]"
+%%     end,
+%%     {reply,["[",Out,"]"],State};
 handle_cast(_Msg, State) ->
+    u:trace("gen_server:cast()",_Msg),
     {noreply, State}.
 handle_info(_Info, State) ->
     u:trace("gen_server:handle_info()",_Info),

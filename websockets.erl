@@ -33,30 +33,35 @@ handshake(Bin) ->
               , port=Port
             } = parseKeys(Fields,#websock{allowed=?AllowedOrigin}),
 
-    ["HTTP/1.1 101 WebSocket Protocol Handshake\r\n",
+     case (Key1=:=undefined orelse Key2=:=undefined) of
+         false -> NewWay=true;
+         true -> NewWay=false
+     end,
+    ["HTTP/1.1 101 ",case NewWay of true-> "WebSocket"; false-> "Web Socket" end," Protocol Handshake\r\n",
      "Upgrade: WebSocket\r\n",
      "Connection: Upgrade\r\n",
-     case (Key1=:=undefined orelse Key2=:=undefined) of
-         false ->
+     case NewWay of
+         true ->
              ["Sec-WebSocket-Origin: ",Origin,"\r\n",
               "Sec-WebSocket-Location: ws://",Host,":",integer_to_list(Port),Request,"\r\n",
               "Sec-WebSocket-Protocol: sample\r\n\r\n",
               erlang:md5(<<Key1:32, Key2:32,Data/binary>>)
              ];
-         true ->
+         false ->
              ["WebSocket-Origin: ",Origin,"\r\n",
               "WebSocket-Location: ws://",Host,":",integer_to_list(Port),Request,"\r\n\r\n"
              ]
      end
     ].
 
-alert(ClientS,MSG) -> msg(ClientS,["Alert @@@ ",MSG]).
+alert(ClientS,MSG) -> msg(ClientS,["alert @@@ ",MSG]).
 msg(ClientS,MSG) -> gen_tcp:send(ClientS,[0,MSG,255]).
 
 die(ClientS,MSG) ->
     alert(ClientS,MSG), 
     gen_tcp:send(ClientS,[0,0,0,0,0,0,0,0,0]),
-    gen_tcp:close(ClientS).
+    gen_tcp:close(ClientS),
+    throw(MSG).
 
 parseKeys([<<"Sec-WebSocket-Key1: ",Key/binary>>|T],Websock) ->
     parseKeys(T,Websock#websock{key1=genKey(Key,[],0)});

@@ -24,18 +24,15 @@ accept_connections(S) ->
 
 step2(ClientS) ->
     receive {tcp,_,Bin1} ->
-            {ok,{IP,_}} = inet:peername(ClientS),
-            ["move",User,X,Y] = string:tokens(binary_to_list(binary:part(Bin1,1,byte_size(Bin1)-2)),"||"),
-            State = #simple{user=User,sock=ClientS,x=X,y=Y},
-            if (length(User)>25) -> throw("Name too long"); true -> void end,
+            ["register",User,Sprite,X,Y] = string:tokens(binary_to_list(binary:part(Bin1,1,byte_size(Bin1)-2)),"||"),
+            if (length(User)>25) -> websockets:die("Name too long"); true -> void end,
             Test = lists:any(fun(E) when E=:=$ ;E=:=$<;E=:=$> -> true;(_)->false end,User),
-            case Test of true -> throw("Bad characters in username"); false -> void end,               
-            case es_websock:checkUser(State,IP,self()) of
-                fail ->
-                    websockets:die(ClientS,"Already Connected");
-                go ->
-                    gen_tcp:send(ClientS,[0,"all @@@ ",es_websock:allUsers(User),255]),
-                    client(State)
+            case Test of true -> websockets:die("Bad characters in username.'"); false -> void end,        
+            {ok,{IP,_}} = inet:peername(ClientS),
+            State = #user{user=User,sprite=Sprite,sock=ClientS,x=X,y=Y,ip=IP,pid=self()},
+            case es_websock:checkUser(State) of
+                fail -> websockets:die(ClientS,"Already Connected");
+                ID -> client(#simple{id=ID,sock=ClientS})
             end
     after ?TIMEOUT ->
             websockets:die(ClientS,"Timeout on Handshake")
@@ -47,35 +44,29 @@ client(State) ->
             Bin1 = binary_to_list(binary:part(Bin,1,byte_size(Bin)-2)),
             actions(State,string:tokens(Bin1,"||")),
             client(State);
+        What when element(1,What)=:=tcp_closed ->
+            logoutAndDie(State,"Disconnected");
+        {die,Reason} ->
+            logoutAndDie(State,Reason);
         _ ->
-            es_websock:logout(State#simple.user),
-            websockets:die(State#simple.sock,"Dead")
+            logoutAndDie(State,"Crash")
     after ?IDLE ->
-            es_websock:logout(State#simple.user),
-            websockets:die(State#simple.sock,"Disconnected from server: IDLE Timeout")
+            logoutAndDie(State,"Idle")
     end.
 
+logoutAndDie(State,MSG) ->
+    es_websock:logout(State#simple.id),
+    websockets:die(State#simple.sock,MSG).
+    
 actions(State,Data) ->
-    User=State#simple.user,
-    [Action,User1|Rest] = Data,
-    case User=/=User1 of
-        true -> self() ! die;
-        false -> actions1(Action,User,State,Rest)
-    end.
-
-actions1(Action,User,State,Data) ->
     case Data of
-        [X,Y] when Action=:="move" ->
-            test(es_websock:move(User,X,Y),State);
-        [Message] when Action=:="say" ->
-            u:trace(User,Message),
-            test(es_websock:say(User,Message),State);
+        ["move",X,Y]  ->
+            es_websock:move(State#simple.id,X,Y);
+        ["say",Message] ->
+            es_websock:say(State#simple.id,Message);
         _ ->
             u:trace("Unidentified Message",Data)
     end.
 
-test(Response,_) when Response=:=fail -> self() ! die;
-test(_,_) -> ok.
 
-    
 
