@@ -58,3 +58,13 @@ datetime_to_unixtime({{_Year, _Month, _Day},{_Hour, _Min, _Sec}}=Datetime) ->
 unixtime() ->
     {MegaSecs, Secs, _MicroSecs} = erlang:now(),
     MegaSecs * 1000000 + Secs.
+
+munixtime() ->
+    {MegaSecs, Secs, MicroSecs} = erlang:now(),
+    MegaSecs * 1000000000 + Secs*1000 + (MicroSecs div 1000).
+
+unique(N) -> unique(N,[]).
+unique(0,L) -> L;
+unique(N,L) ->
+    Arr = [$a,$b,$c,$d,$e,$f,$g,$h,$i,$j,$k,$l,$m,$n,$o,$p,$q,$r,$s,$t,$u,$v,$w,$x,$y,$z,$A,$B,$C,$D,$E,$F,$G,$H,$I,$J,$K,$L,$M,$N,$O,$P,$Q,$R,$S,$T,$U,$V,$W,$X,$Y,$Z,$0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$-,$_],
+    unique(N-1,[lists:nth(random:uniform(64),Arr)|L]).
