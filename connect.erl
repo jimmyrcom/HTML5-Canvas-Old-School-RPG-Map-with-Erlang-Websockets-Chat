@@ -60,12 +60,12 @@ logoutAndDie(State,MSG) ->
     
 actions(State,Data) ->
     case Data of
-        ["move",X,Y]  ->
-            es_websock:move(State#simple.id,X,Y);
-        ["say",Message] ->
-            es_websock:say(State#simple.id,Message);
-        _ ->
-            u:trace("Unidentified Message",Data)
+        ["move",X,Y]  -> es_websock:move(State,X,Y);
+        ["say",Message] -> es_websock:say(State,Message);
+        ["nick",Name] -> es_websock:nick(State,Name);
+        ["sprite",Sprite] when Sprite=:="0";Sprite=:="1" -> es_websock:sprite(State,Sprite);
+        ["challenge",User]  -> es_websock:challenge(State,User);
+        _ -> u:trace("Unidentified Message",Data)
     end.
 
 
