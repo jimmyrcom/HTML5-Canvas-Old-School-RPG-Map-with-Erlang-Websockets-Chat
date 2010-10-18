@@ -1,5 +1,5 @@
 -module(websockets).
--export([handshake/1,msg/2,alert/2,die/2]).
+-export([handshake/2,msg/2,alert/2,die/2]).
 -record(websock,{key1,key2,allowed,origin,host,request,port,callback,callbackData=[]}).
 -define(AllowedOrigin,
         [ <<"rp.eliteskills.com">>
@@ -102,7 +102,8 @@ parseKeys([],W) ->
     u:trace(W),
     throw("Missing Information");
 parseKeys([_|T],W) when W#websock.callback=/=false ->
-    parseKeys(T,W#websock{callbackData=W#websock.callback()});
+    F=W#websock.callback,
+    parseKeys(T,W#websock{callbackData=F()});
 parseKeys([_|T],Websock) -> parseKeys(T,Websock).
 
 genKey(<<X:8,Rest/binary>>,Numbers,Spaces) when X>47 andalso X<58 ->

@@ -47,7 +47,7 @@ sendToAll(Dict,You,Message) ->
              end,Dict).
 
 say(Simple,Message) -> gen_server:cast(?MODULE,{say,Simple,Message}).
-move(Simple) -> gen_server:cast(?MODULE,{move,Simple,X,Y}).
+move(Simple,X,Y) -> gen_server:cast(?MODULE,{move,Simple,X,Y}).
 logout(Simple) -> gen_server:cast(?MODULE,{logout,Simple}).
 
 checkUser(State) -> gen_server:call(?MODULE,{checkUser,State}).
@@ -76,10 +76,9 @@ handle_cast({logout,#simple{id=ID,map=Map}}, State=#state{maps=Maps}) ->
         {ok, #user{user=User,pid=Pid}} ->
             Pid ! {die,"Disconnected"},
             sendToAll(MapDict,ID,["logout @@@ ",User]),
-            {reply,ok,State#state{maps=map:set(Map,dict:erase(ID,MapDict)},Maps)};
+            {reply,ok,State#state{maps=map:set(Map,dict:erase(ID,MapDict),Maps)}};
         _ -> {reply,State}
-    end,
-
+    end;
 handle_cast(_Msg, State) ->
     u:trace("gen_server:cast()",_Msg),
     {noreply, State}.

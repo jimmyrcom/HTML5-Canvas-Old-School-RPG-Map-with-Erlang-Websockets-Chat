@@ -24,20 +24,20 @@ checkUser1(IP,Record=#user{ip=IP},State=#state{lookupByIP=LBIP}) ->
     end.
 
 checkUser2(IP,Record,State) ->
-    #user{user=User,x=X,y=Y,sprite=Sprite,sock=Sock} = Record,
+    #user{user=User,x=X,y=Y,sprite=Sprite,sock=Sock,auth=Auth} = Record,
     #state{maps=Maps,increment=ID,lookupByID=LBID,lookupByName=LBName,lookupByIP=LBIP} = State,
     Map0Dict=array:get(0,Maps),
 
     %%send all user locations for current map
     Gather =
-        fun(_,#user{x=X,y=Y,sprite=Sprite,auth=Auth,user=User1},Acc)->
-                 [[",[\"",User1,"\",\"",Sprite,"\",\"",Auth,"\",\"",X,"\",\"",Y,"\"]"]|Acc]
+        fun(_,#user{x=X1,y=Y1,sprite=Sprite1,auth=Auth1,user=User1},Acc)->
+                 [[",[\"",User1,"\",\"",Sprite1,"\",\"",Auth1,"\",\"",X1,"\",\"",Y1,"\"]"]|Acc]
         end,
-    case lists:flatten(dict:fold(Gather,[],MapDict)) of
+    case lists:flatten(dict:fold(Gather,[],Map0Dict)) of
         [_|Out] -> void;
         [] -> Out="[]"
     end,
-    websock:msg("all",["[",Out,"]"]),
+    websockets:msg(Sock,"all",["[",Out,"]"]),
 
     NewDict=dict:store(ID,Record#user{id=ID},Map0Dict),
     Maps1=array:set(0,NewDict,Maps),
