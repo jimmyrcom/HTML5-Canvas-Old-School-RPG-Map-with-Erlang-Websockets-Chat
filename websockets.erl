@@ -1,5 +1,5 @@
 -module(websockets).
--export([handshake/2,msg/2,alert/2,die/2]).
+-export([handshake/1,handshake/2,msg/2,alert/2,die/2]).
 -record(websock,{key1,key2,allowed,origin,host,request,port,callback,callbackData=[]}).
 -define(AllowedOrigin,
         [ <<"rp.eliteskills.com">>
@@ -18,7 +18,7 @@
 
 %% You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-
+handshake(Bin) -> handshake(Bin,false).
 handshake(Bin,Callback) ->
     case binary:split(Bin,<<16#0d0a0d0a:32>>) of
         [HttpRequest|[Data]] -> void;
