@@ -1,5 +1,5 @@
 -module(websockets).
--export([handshake/1,handshake/2,msg/2,alert/2,die/2]).
+-export([handshake/1,handshake/2,msg/2,msg/3,alert/2,die/2]).
 -record(websock,{key1,key2,allowed,origin,host,request,port,callback,callbackData=[]}).
 -define(AllowedOrigin,
         [ <<"rp.eliteskills.com">>

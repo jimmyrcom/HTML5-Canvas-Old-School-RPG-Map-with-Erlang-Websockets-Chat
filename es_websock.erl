@@ -68,7 +68,7 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast({say,Simple,Message}, State) when Message=/="" -> say:say(Simple,Message,State);
-handle_cast({say,Simple,X,Y}, State)  -> move:move(Simple,X,Y,State);
+handle_cast({move,Simple,X,Y}, State)  -> move:move(Simple,X,Y,State);
 
 handle_cast({logout,#simple{id=ID,map=Map}}, State=#state{maps=Maps}) ->
     MapDict=array:get(Map,Maps),
