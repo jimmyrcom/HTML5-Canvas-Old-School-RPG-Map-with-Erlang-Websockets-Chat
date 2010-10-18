@@ -16,8 +16,9 @@
            , lastMessage=0
            , lastAction=0
            , floodTest= [ 4000 || _ <- lists:seq(1,6)]
-           , sprite=""
+           , sprite="0"
            , ip
+           , auth="0"
            , sock
            , pid
         }).

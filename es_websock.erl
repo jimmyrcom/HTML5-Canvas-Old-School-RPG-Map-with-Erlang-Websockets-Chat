@@ -6,8 +6,15 @@
 -include("user.hrl").
 -define(SERVER, ?MODULE).
 
-%%Created by Jimmy Ruska under GPL 2.0
-%% Copyright (C) 2010 Jimmy Ruska (@JimmyRcom,Youtube:JimmyRcom,Gmail:JimmyRuska)
+%% Copyright (C) 2010 Jimmy Ruska (www.JimmyR.com,Youtube:JimmyRcom,Gmail:JimmyRuska), under GPL 2.0
+
+%This code uses erlang OTP's gen_server to handle incoming data like movements, messages and registration
+%All data is centralized in the server state and is lost on exit. At this time there is no centralized database
+%though I don't plan on adding features that require one, like a player inventory or permanent statistics.
+
+%There is a performance penalty from using modules, but putting all the code here gets ridiculous pretty fast
+%It's hard to debug and read things when everything is nested, stacking functions on one page isn't any prettier
+
 
 %% This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
 
@@ -39,13 +46,12 @@ sendToAll(Dict,You,Message) ->
                 (_,Record) -> gen_tcp:send(Record#user.sock,[0,Message,255])
              end,Dict).
 
-say(ID,Message) -> gen_server:cast(?MODULE,{say,ID,Message}).
-move(ID) -> gen_server:cast(?MODULE,{move,ID}).
-logout(ID) -> gen_server:cast(?MODULE,{logout,ID}).
+say(Simple,Message) -> gen_server:cast(?MODULE,{say,Simple,Message}).
+move(Simple) -> gen_server:cast(?MODULE,{move,Simple,X,Y}).
+logout(Simple) -> gen_server:cast(?MODULE,{logout,Simple}).
 
 checkUser(State) -> gen_server:call(?MODULE,{checkUser,State}).
 
-%performance penalty from using modules, but putting all the code here gets ridiculous pretty fast
 handle_call({checkUser,UserState}, _, State) -> checkUser:checkUser(UserState,State);
 handle_call(getState, _From, State) -> {reply,State,State};
 handle_call(debug, _From, State) ->
@@ -61,30 +67,12 @@ handle_call(_Request, _From, State) ->
     u:trace("unknown gen_server:handle_call()",_Request),
     {reply, ok, State}.
 
-%% handle_cast({say,Simple,Message}, State) when Message=/="" ->
-%%    {noreply, say:say(Simple,Message,State)}
-%% handle_cast({move,ID,User,X,Y},  State = #state{users=Users}) ->
-%%     case dict:find(ID,Users) of
-%%         {ok, Record} ->
-%%             Last=Record#user.lastMessage,
-%%             sendToAll(Users,User,["move @@@ ",User,"||",X,"||",Y]),
-%%             {reply,ok,State#state{users=dict:store(User,Record#user{lastMessage=Last,lastAction=Last,x=X,y=Y},Users)}};
-%%         _ -> {reply,State}
-%%     end;
+handle_cast({say,Simple,Message}, State) when Message=/="" -> say:say(Simple,Message,State);
+handle_cast({say,Simple,X,Y}, State)  -> move:move(Simple,X,Y,State);
+
 %% handle_cast({logout,User}, State=#state{users=Users}) ->
 %%     sendToAll(Users,User,["logout @@@ ",User]),
 %%     {reply,ok,State#state{users=dict:erase(User,Users)}};
-%% handle_cast({allUsers,User},  State=#state{users=Users}) ->
-%%     Gather =
-%%         fun(Key,#user{x=X,y=Y},Acc)->
-%%                 if User=/=Key -> [[",[\"",Key,"\",\"",X,"\",\"",Y,"\"]"]|Acc];
-%%                    true -> Acc end                               
-%%         end,
-%%     case lists:flatten(dict:fold(Gather,[],Users)) of
-%%         [_|Out] -> void;
-%%         [] -> Out="[]"
-%%     end,
-%%     {reply,["[",Out,"]"],State};
 handle_cast(_Msg, State) ->
     u:trace("gen_server:cast()",_Msg),
     {noreply, State}.

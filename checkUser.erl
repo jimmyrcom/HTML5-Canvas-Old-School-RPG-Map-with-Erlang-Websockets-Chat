@@ -24,13 +24,25 @@ checkUser1(IP,Record=#user{ip=IP},State=#state{lookupByIP=LBIP}) ->
     end.
 
 checkUser2(IP,Record,State) ->
-    #user{user=User,x=X,y=Y,sprite=Sprite} = Record,
+    #user{user=User,x=X,y=Y,sprite=Sprite,sock=Sock} = Record,
     #state{maps=Maps,increment=ID,lookupByID=LBID,lookupByName=LBName,lookupByIP=LBIP} = State,
     Map0Dict=array:get(0,Maps),
+
+    %%send all user locations for current map
+    Gather =
+        fun(_,#user{x=X,y=Y,sprite=Sprite,auth=Auth,user=User1},Acc)->
+                 [[",[\"",User1,"\",\"",Sprite,"\",\"",Auth,"\",\"",X,"\",\"",Y,"\"]"]|Acc]
+        end,
+    case lists:flatten(dict:fold(Gather,[],MapDict)) of
+        [_|Out] -> void;
+        [] -> Out="[]"
+    end,
+    websock:msg("all",["[",Out,"]"]),
+
     NewDict=dict:store(ID,Record#user{id=ID},Map0Dict),
     Maps1=array:set(0,NewDict,Maps),
     LBID1=dict:store(ID,0,LBID),
     LBIP1=gb_trees:enter(IP,{0,ID},LBIP),
     LBName1=gb_trees:enter(User,{0,ID},LBName),
-    array:foldl(fun(_,Dict,_) -> es_websock:sendToAll(Dict,ID,["login @@@ ",User,"||",Sprite,"||",X,"||",Y]) end,0,Maps),
+    array:foldl(fun(_,Dict,_) -> es_websock:sendToAll(Dict,ID,["login @@@ ",User,"||",Sprite,"||",Auth,"||",X,"||",Y]) end,0,Maps),
     {reply,ID,State#state{maps=Maps1,increment=ID+1,lookupByID=LBID1,lookupByIP=LBIP1,lookupByName=LBName1}}.

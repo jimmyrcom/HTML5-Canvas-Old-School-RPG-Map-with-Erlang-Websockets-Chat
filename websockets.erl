@@ -1,24 +1,25 @@
 -module(websockets).
 -export([handshake/1,msg/2,alert/2,die/2]).
--record(websock,{key1,key2,allowed,origin,host,request,port}).
+-record(websock,{key1,key2,allowed,origin,host,request,port,callback,callbackData=[]}).
 -define(AllowedOrigin,
         [ <<"rp.eliteskills.com">>
               , <<"jimmyr.com">>
               , <<"localhost">>
               , <<"76.74.253.61.844">>
         ]).
-%%Created by Jimmy Ruska under GPL 2.0
-%% Copyright (C) 2010 Jimmy Ruska (@JimmyRcom,Youtube:JimmyRcom,Gmail:JimmyRuska)
-%% This implements a websocket handler in erlang. You give it the request and it returns the proper handshake.
+
+%% Copyright (C) 2010 Jimmy Ruska (www.JimmyR.com,Youtube:JimmyRcom,Gmail:JimmyRuska), under GPL 2.0
+%You give it a websockets handshake and it returns a proper response. Accepts a Fun as callback
+%in order to parse things like cookies or protocol.
 
 %% This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
-
+ 
 %% This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 %% You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 
-handshake(Bin) ->
+handshake(Bin,Callback) ->
     case binary:split(Bin,<<16#0d0a0d0a:32>>) of
         [HttpRequest|[Data]] -> void;
         [HttpRequest] -> Data = void
@@ -31,7 +32,7 @@ handshake(Bin) ->
               , request=Request
               , host=Host
               , port=Port
-            } = parseKeys(Fields,#websock{allowed=?AllowedOrigin}),
+            } = parseKeys(Fields,#websock{allowed=?AllowedOrigin,callback=Callback}),
 
      case (Key1=:=undefined orelse Key2=:=undefined) of
          false -> NewWay=true;
@@ -54,11 +55,13 @@ handshake(Bin) ->
      end
     ].
 
-alert(ClientS,MSG) -> msg(ClientS,["alert @@@ ",MSG]).
+alert(ClientS,MSG) -> msg(ClientS,"alert",MSG).
 msg(ClientS,MSG) -> gen_tcp:send(ClientS,[0,MSG,255]).
+msg(ClientS,Type,MSG) -> gen_tcp:send(ClientS,[0,Type,<<"@@@">>,MSG,255]).
 
 die(ClientS,MSG) ->
     alert(ClientS,MSG), 
+    gen_tcp:send(ClientS,[255,0]),
     gen_tcp:send(ClientS,[0,0,0,0,0,0,0,0,0]),
     gen_tcp:close(ClientS),
     throw(MSG).
@@ -98,6 +101,8 @@ parseKeys([],W) when
 parseKeys([],W) ->
     u:trace(W),
     throw("Missing Information");
+parseKeys([_|T],W) when W#websock.callback=/=false ->
+    parseKeys(T,W#websock{callbackData=W#websock.callback()});
 parseKeys([_|T],Websock) -> parseKeys(T,Websock).
 
 genKey(<<X:8,Rest/binary>>,Numbers,Spaces) when X>47 andalso X<58 ->
