@@ -1,4 +1,4 @@
--module(move).
+-module(logout).
 -compile(export_all).
 -include("user.hrl").
 %% Copyright (C) 2010 Jimmy Ruska (www.JimmyR.com,Youtube:JimmyRcom,Gmail:JimmyRuska), under GPL 2.0
@@ -10,15 +10,15 @@
 %% You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 
-move(#simple{id=ID,map=Map},X,Y,State = #state{maps=Maps}) ->
+logout(#simple{id=ID,map=Map},State = #state{maps=Maps,lookupByID=LBID,lookupByName=LBName,lookupByIP=LBIP}) ->
     MapDict=array:get(Map,Maps),
-    Now=u:munixtime(),
     case dict:find(ID,MapDict) of
-        {ok, Record=#user{lastAction=LastAction,user=User}} when (Now-LastAction)>349 ->
-            NewMaps=array:set(Map,dict:store(ID,Record#user{lastAction=Now,x=X,y=Y},MapDict),Maps),
-            es_websock:sendToAll(MapDict,ID,["move @@@ ",User,"||",X,"||",Y]),
-            {noreply,State#state{maps=NewMaps}};
+        {ok, #user{user=User,pid=Pid,ip=IP}} ->
+            Pid ! {die,"Disconnected"},
+            es_websock:sendToAll(MapDict,ID,["logout @@@ ",User]),
+            LBID1=dict:erase(ID,LBID),
+            LBIP1=gb_trees:delete_any(IP,LBIP),
+            LBName1=gb_trees:delete_any(User,LBName),
+            {noreply,State#state{maps=array:set(Map,dict:erase(ID,MapDict),Maps),lookupByID=LBID1,lookupByName=LBName1,lookupByIP=LBIP1}};
         _ -> {noreply,State}
     end.
-
-    

@@ -57,7 +57,7 @@ handshake(Bin,Callback) ->
 
 alert(ClientS,MSG) -> msg(ClientS,"alert",MSG).
 msg(ClientS,MSG) -> gen_tcp:send(ClientS,[0,MSG,255]).
-msg(ClientS,Type,MSG) -> gen_tcp:send(ClientS,[0,Type,<<"@@@">>,MSG,255]).
+msg(ClientS,Type,MSG) -> gen_tcp:send(ClientS,[0,Type,<<" @@@ ">>,MSG,255]).
 
 die(ClientS,MSG) ->
     alert(ClientS,MSG), 

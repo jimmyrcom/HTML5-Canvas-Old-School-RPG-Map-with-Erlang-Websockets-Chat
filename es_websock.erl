@@ -70,15 +70,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({say,Simple,Message}, State) when Message=/="" -> say:say(Simple,Message,State);
 handle_cast({move,Simple,X,Y}, State)  -> move:move(Simple,X,Y,State);
 
-handle_cast({logout,#simple{id=ID,map=Map}}, State=#state{maps=Maps}) ->
-    MapDict=array:get(Map,Maps),
-    case dict:find(ID,MapDict) of
-        {ok, #user{user=User,pid=Pid}} ->
-            Pid ! {die,"Disconnected"},
-            sendToAll(MapDict,ID,["logout @@@ ",User]),
-            {reply,ok,State#state{maps=map:set(Map,dict:erase(ID,MapDict),Maps)}};
-        _ -> {reply,State}
-    end;
+handle_cast({logout,Simple}, State) -> logout:logout(Simple,State);
 handle_cast(_Msg, State) ->
     u:trace("gen_server:cast()",_Msg),
     {noreply, State}.

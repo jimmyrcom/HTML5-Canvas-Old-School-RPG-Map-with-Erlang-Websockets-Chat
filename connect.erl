@@ -47,14 +47,15 @@ client(State) ->
             logoutAndDie(State,"Disconnected");
         {die,Reason} ->
             logoutAndDie(State,Reason);
-        _ ->
+        What ->
+            u:trace(What),
             logoutAndDie(State,"Crash")
     after ?IDLE ->
             logoutAndDie(State,"Idle")
     end.
 
 logoutAndDie(State,MSG) ->
-    es_websock:logout(State#simple.id),
+%    es_websock:logout(State),
     websockets:die(State#simple.sock,MSG).
     
 actions(State,Data) ->

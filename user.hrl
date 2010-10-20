@@ -13,8 +13,8 @@
            , id=0
            , user=""
            , map=0
-           , lastMessage=0
-           , lastAction=0
+           , lastMessage=u:munixtime()-3000
+           , lastAction=u:munixtime()-3000
            , floodTest= [ 4000 || _ <- lists:seq(1,6)]
            , sprite="0"
            , ip
