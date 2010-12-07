@@ -60,11 +60,11 @@ msg(ClientS,MSG) -> gen_tcp:send(ClientS,[0,MSG,255]).
 msg(ClientS,Type,MSG) -> gen_tcp:send(ClientS,[0,Type,<<" @@@ ">>,MSG,255]).
 
 die(ClientS,MSG) ->
-    alert(ClientS,MSG), 
+    alert(ClientS,MSG),
     gen_tcp:send(ClientS,[255,0]),
     gen_tcp:send(ClientS,[0,0,0,0,0,0,0,0,0]),
     gen_tcp:close(ClientS),
-    throw(MSG).
+    u:trace(MSG).
 
 parseKeys([<<"Sec-WebSocket-Key1: ",Key/binary>>|T],Websock) ->
     parseKeys(T,Websock#websock{key1=genKey(Key,[],0)});

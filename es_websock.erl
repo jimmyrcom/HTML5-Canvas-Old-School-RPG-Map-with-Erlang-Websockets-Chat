@@ -27,7 +27,7 @@ start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 init([]) ->
     process_flag(trap_exit, true),
     %443
-    case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}, {packet_size,1024*2}]) of
+    case gen_tcp:listen(844, [binary, {packet, 0}, {active, true}, {reuseaddr, true}, {packet_size,1024*2},{keepalive,true}]) of
         {ok, S} -> 
             spawn(fun() -> connect:accept_connections(S) end),
             {ok,#state{sock=S}};

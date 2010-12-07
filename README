@@ -1,4 +1,5 @@
-Erlang websocket server for my HTML5 Canvas Map
+Check it out here:
 http://rp.eliteskills.com/html5.php
 
-It tracks connections and sends chat messages and movement updates. 
+It's a basic old school style RPG MAP that supports multiple users using HTML5 Websockets for the client and erlang for the server.
+

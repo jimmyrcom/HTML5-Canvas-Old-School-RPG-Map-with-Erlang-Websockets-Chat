@@ -43,7 +43,7 @@ client(State) ->
             Bin1 = binary_to_list(binary:part(Bin,1,byte_size(Bin)-2)),
             actions(State,string:tokens(Bin1,"||")),
             client(State);
-        What when element(1,What)=:=tcp_closed ->
+        {tcp_closed,_} ->
             logoutAndDie(State,"Disconnected");
         {die,Reason} ->
             logoutAndDie(State,Reason);
@@ -55,7 +55,7 @@ client(State) ->
     end.
 
 logoutAndDie(State,MSG) ->
-%    es_websock:logout(State),
+    es_websock:logout(State),
     websockets:die(State#simple.sock,MSG).
     
 actions(State,Data) ->

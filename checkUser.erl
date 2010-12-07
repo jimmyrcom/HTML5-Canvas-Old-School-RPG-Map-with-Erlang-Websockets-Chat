@@ -13,7 +13,7 @@
 
 checkUser(Record = #user{ip=IP}, State = #state{banned=Banned}) ->
     case lists:any(fun(IP1) when IP1=:=IP -> true;(_)->false end,Banned) of
-        false -> checkUser2(IP,Record,State);
+        false -> checkUser1(IP,Record,State);
         true -> u:trace("fail at IP ban"), {noreply,State}
     end.
 
